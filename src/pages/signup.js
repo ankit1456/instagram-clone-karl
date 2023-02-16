@@ -4,30 +4,57 @@ import { Link, useHistory } from "react-router-dom";
 import { useContext, useEffect, useState } from "react";
 
 import firebaseContext from "../context/firebase";
+import { doesUsernameExists } from "../services/firebase";
 
-const Login = () => {
+const Signup = () => {
   const history = useHistory();
   const { Firebase } = useContext(firebaseContext);
 
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const isInvalid = !password || !email;
 
-  const handleLogin = async (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
-    try {
-      await Firebase.auth().signInWithEmailAndPassword(email, password);
-      history.push(ROUTES.DASHBOARD);
-    } catch (error) {
-      setEmail("");
-      setPassword("");
-      setError(error.message);
+    const usernameExists = await doesUsernameExists(username);
+    console.log("usernameExists:", usernameExists);
+
+    if (!usernameExists.includes(true)) {
+      try {
+        const createdUser =
+          await Firebase.auth().createUserWithEmailAndPassword(email, password);
+
+        await createdUser.user.updateProfile({
+          displayName: username,
+        });
+
+        await Firebase.firestore().collection("users").add({
+          userId: createdUser.user.uid,
+          username: username.toLowerCase(),
+          fullName,
+          emailAddress: email.toLowerCase(),
+          followers: [],
+          dateCreated: Date.now(),
+        });
+
+        history.push(ROUTES.DASHBOARD);
+      } catch (error) {
+        setEmail("");
+        setPassword("");
+        setUsername("");
+        setFullName("");
+        setError(error.message);
+      }
+    } else {
+      setError("username is already taken, Please try another");
     }
   };
   useEffect(() => {
-    document.title = "Login - Instagram";
+    document.title = "Sign up - Instagram";
   }, []);
 
   return (
@@ -37,7 +64,6 @@ const Login = () => {
           src="/images/iphone-with-profile.jpg"
           alt="iPhone with Instagram app"
         />
-        
       </div>
       <div className="flex flex-col w-2/5">
         <div className="flex flex-col items-center bg-white p-4 border border-gray-primary mb-4 rounded">
@@ -51,7 +77,23 @@ const Login = () => {
 
           {error && <p className="mb-4 text-xs text-red-primary">{error}</p>}
 
-          <form onSubmit={handleLogin}>
+          <form onSubmit={handleSignup}>
+            <input
+              aria-label="Enter your full name"
+              type="text"
+              placeholder="full name"
+              className="text-sm text-gray-base w-full mr-3 py-5 px-4 h-2 border border-gray-primary rounded mb-2"
+              onChange={({ target }) => setFullName(target.value)}
+              value={fullName}
+            />
+            <input
+              aria-label="Enter your username"
+              type="text"
+              placeholder="username"
+              className="text-sm text-gray-base w-full mr-3 py-5 px-4 h-2 border border-gray-primary rounded mb-2"
+              onChange={({ target }) => setUsername(target.value)}
+              value={username}
+            />
             <input
               aria-label="Enter your email address"
               type="text"
@@ -74,18 +116,15 @@ const Login = () => {
               className={`bg-blue-medium text-white w-full rounded h-8 font-medium
         ${isInvalid && "opacity-50"}`}
             >
-              Log in
+              Sign up
             </button>
           </form>
         </div>
         <div className="flex flex-col justify-center items-center  w-full bg-white p-4 rounded border border-gray-primary">
           <p className="text-sm">
-            Don't have an account?{` `}
-            <Link
-              to={ROUTES.SIGN_UP}
-              className="font-semibold text-blue-medium"
-            >
-              Sign up
+            Have an account?{` `}
+            <Link to={ROUTES.LOGIN} className="text-blue-medium">
+              Sign in
             </Link>
           </p>
         </div>
@@ -94,4 +133,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Signup;
